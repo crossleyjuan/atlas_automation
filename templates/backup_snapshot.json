@@ -1,0 +1,4 @@
+{
+	"snapshotIntervalHours": ${snapshotIntervalHours},
+	"snapshotRetentionDays": ${snapshotRetentionDays},
+

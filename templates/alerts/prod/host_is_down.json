@@ -1,0 +1,15 @@
+{
+	"enabled": true,
+	"eventTypeName": "HOST_DOWN",
+	"matchers": [],
+	"notifications": [
+		{
+			"delayMin": 5,
+			"emailEnabled": true,
+			"intervalMin": 60,
+			"smsEnabled": false,
+			"typeName": "GROUP"
+		}
+	],
+	"typeName": "HOST"
+}

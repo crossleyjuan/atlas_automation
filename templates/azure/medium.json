@@ -1,0 +1,30 @@
+{
+	"name": "${cluster_name}",
+	"mongoDBMajorVersion": "${mongodb_version}",
+	"diskSizeGB": ${disk_size},
+	"numShards": 1,
+	"providerSettings": {
+		"providerName": "${provider_name}",
+		"instanceSizeName": "M60",
+		"regionName": "${region}"
+	},
+	"clusterType" : "REPLICASET",
+	"replicationFactor": 3,
+	"replicationSpecs": [{
+		"numShards": 1,
+		"regionsConfig": {
+			"${region}": {
+				"analyticsNodes": 0,
+				"electableNodes": 3,
+				"priority": 7,
+				"readOnlyNodes": 0
+			}
+		},
+		"zoneName": "Zone 1"
+	}],
+	"backupEnabled": ${backup_pit_enabled},
+	"providerBackupEnabled" : ${backup_provider_enabled},
+	"autoScaling": {
+		"diskGBEnabled": false
+	}
+}

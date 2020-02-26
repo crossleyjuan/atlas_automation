@@ -1,0 +1,50 @@
+#!/bin/bash
+
+. common
+. conf 
+
+function usage() {
+	echo "Error: $1"
+	echo "Usage: ./create_cluster -p <project> -c <cluster_name> [-t template]"
+	echo ""
+	echo "project:  Project ID"
+	echo "cluster:  Cluster"
+	echo "template:  small (default), medium, large"
+	echo ""
+}
+
+function parse_args () {
+	while getopts "p:c:dt:x:" opt; do
+		case ${opt} in
+			p ) export project_id=${OPTARG}
+				;;
+			c ) export cluster_name=${OPTARG}
+				;;
+			t ) export template=${OPTARG}
+				;;
+			x ) export disk_size=${OPTARG}
+				;;
+			d ) DEBUG=1
+				;;
+			\?) usage && exit 1;;
+		esac
+	done
+	# removes the elements not processed by getopts
+	shift $((OPTIND -1))
+
+	if [ -z "$project_id" ];
+	then
+		usage && exit 1
+	fi
+	if [ -z "$cluster_name" ];
+	then
+		usage && exit 1
+	fi
+}
+
+#export provider_name="AWS"
+
+parse_args "$@"
+create_cluster $template $disk_size
+
+echo "${cluster_id}"

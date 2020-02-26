@@ -1,0 +1,22 @@
+{
+	"enabled": true,
+	"eventTypeName": "OUTSIDE_METRIC_THRESHOLD",
+	"matchers": [],
+	"metricThreshold": {
+		"metricName": "EXTRA_INFO_PAGE_FAULTS",
+		"mode": "AVERAGE",
+		"operator": "GREATER_THAN",
+		"threshold": 10,
+		"units": "RAW"
+	},
+	"notifications": [
+		{
+			"delayMin": 5,
+			"emailEnabled": true,
+			"intervalMin": 60,
+			"smsEnabled": false,
+			"typeName": "GROUP"
+		}
+	],
+	"typeName": "HOST_METRIC"
+}

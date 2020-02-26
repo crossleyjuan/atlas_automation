@@ -1,0 +1,7 @@
+#!/bin/bash
+
+public_key=<public key>
+private_key=<private key>
+organizationId=<org id>
+
+base_url=https://cloud.mongodb.com/api/atlas/v1.0

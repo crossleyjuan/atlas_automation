@@ -1,0 +1,271 @@
+#!/bin/bash
+export provider_name="AZURE"
+export region="EUROPE_WEST"
+
+function check_errors () {
+	result=$1
+
+	if [ -z "${result}" ];
+	then
+		return 0
+	fi
+	error=$(echo $result|jq -r '.error')
+	if [ "${error}" != "null" ];
+	then
+		echo "Error: $(echo $result|jq -r '.detail')" && exit 1
+	fi
+}
+
+###
+#
+#   check_required ${project_name} "Project name is required"
+##
+function check_required () {
+	param=$1
+	message=$2
+	options=$3
+
+	if [ -z "${param}" ];
+	then
+		usage "${message}" && exit 1
+	fi
+
+	if [ ! -z "${options}" ];
+	then
+		option_valid=0
+		IFS=',' read -ra OPTS <<< "$options"
+		for o in "${OPTS[@]}"; do
+			if [ "$o" == "$param" ];
+			then
+				option_valid=1
+			fi
+		done
+
+		if [ $option_valid == 0 ];
+		then
+			usage "${message}" && exit 1
+		fi
+	fi
+
+}
+
+function create_project () {
+	projectName=$1
+	echo "Creating $projectName"
+
+	project_result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json" -X POST "${base_url}/groups" --data "{ \"name\" : \"${projectName}\", \"orgId\" : \"${organizationId}\" }")
+
+	check_errors "${project_result}" 
+
+	if [ $DEBUG == 1 ];
+	then
+		echo "Result: ${project_result}"
+	fi
+
+	export project_id=$(echo $project_result|jq -r '.id')
+
+	return 0
+}
+
+function create_cluster () {
+	template=$1
+	disk_size=$2
+
+	echo "Creating cluster"
+
+	if [ -z "${disk}" ];
+	then
+		case "${template}" in
+			small ) 
+				export disk_size=100
+				;;
+			medium ) 
+				export disk_size=300
+				echo "medium"
+				;;
+			large )
+				export disk_size=500
+				echo "large"
+				;;
+		esac
+	fi
+	data=$(envsubst < templates/azure/${template}.json)
+	
+	if [ $DEBUG == 1 ];
+	then
+		echo $data
+	fi
+
+	cluster_result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
+		-X POST "${base_url}/groups/${project_id}/clusters" --data "${data}")
+
+	check_errors "${cluster_result}" 
+
+	if [ $DEBUG == 1 ];
+	then
+		echo "result: $cluster_result"
+	fi
+
+	export cluster_id=$(echo $cluster_result|jq -r '.id')
+
+	return 0
+}
+
+function create_user () {
+	project_id=$1
+	username=$2
+	authtype=$3
+
+	case "${authtype}" in
+		x509 )
+			export auth_database="\$external"
+			data=$(envsubst < templates/create_user_x509.json)
+			;;
+		scram )
+			export auth_database="admin"
+			export password="1234"
+			data=$(envsubst < templates/create_user_scram.json)
+			;;
+	esac
+
+	echo "Creating user"
+
+	if [ $DEBUG == 1 ];
+	then
+		echo "Command data: ${data}"
+	fi
+
+	result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
+		-X POST "${base_url}/groups/${project_id}/databaseUsers" --data "${data}")
+
+	if [ $DEBUG == 1 ];
+	then
+		echo "Result from create user: ${result}"
+	fi
+
+	check_errors "${result}"
+
+	case "${authtype}" in
+		x509 )
+			echo "Getting the x509 certificate"
+			data_cert="{ \"monthsUntilExpiration\": 12 }"
+			result_cert=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
+				-X POST "${base_url}/groups/${project_id}/databaseUsers/${username}/certs" --data "${data_cert}")
+
+			if [ $DEBUG == 1 ];
+			then
+				echo "result from get certificate ${result_cert}"
+			fi
+
+			result_cert=$(echo ${result_cert}|sed -e "s/-----\([A-Z]*\) \([A-Z]*\)-----/-----\1_\2-----/g" -e "s/-----\([A-Z]*\) \([A-Z]*\) \([A-Z]*\)-----/-----\1_\2_\3-----/g")
+			echo -n $result_cert | tr ' ' '\n'  > output/${username}.pem
+
+			sed -e "s/-----\([A-Z]*\)_\([A-Z]*\)-----/-----\1 \2-----/g" -e "s/-----\([A-Z]*\)_\([A-Z]*\)_\([A-Z]*\)-----/-----\1 \2 \3-----/g" -i '' output/${username}.pem
+
+			echo "Certificate generated in output/${username}.pem"
+			;;
+		scram )
+			echo "User created username: ${username}, password: ${password}"
+			;;
+
+	esac
+	return 0
+}
+
+function enable_peering_only_mode () {
+	result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
+		--request PATCH "${base_url}/groups/${project_id}/privateIpMode" --data '{ "enabled": true }')
+
+	if [ $DEBUG == 1 ];
+	then
+		echo "Result Enabling Peering: ${result}"
+	fi
+
+	check_errors "${result}"
+
+	echo "Peering only mode enabled"
+
+	return 0
+}
+
+function delete_all_alerts () {
+	current_config=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
+		--request GET "${base_url}/groups/${project_id}/alertConfigs")
+
+	if [ $DEBUG == 1 ];
+	then
+		echo "${current_config}" | jq .
+	fi
+
+	for alert in $(echo ${current_config}| jq -c .results[]); do
+		alertId=$(echo ${alert} | jq .id | sed -e "s/\"//g")
+
+		#		if [ $DEBUG == 1 ];
+		#		then
+		#			echo "${alert}" | jq .
+		#		fi
+
+		delete_alert "${alertId}"
+	done
+}
+
+function delete_alert () {
+	alertId=$1
+	result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
+		--request DELETE "${base_url}/groups/${project_id}/alertConfigs/${alertId}")
+
+	if [ $DEBUG == 1 ];
+	then
+		echo "deleted alert ${alertId}"
+	fi
+	check_errors "${result}"
+}
+
+function create_alerts () {
+	delete_all_alerts
+
+	result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
+		--request GET "${base_url}/groups/${project_id}/alertConfigs")
+	#echo ${result}| jq .
+
+	for f in templates/alerts/prod/*.json; 
+	do
+		data=$(envsubst < $f)
+
+		result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
+			--request POST "${base_url}/groups/${project_id}/alertConfigs" --data "${data}")
+		if [ $DEBUG == 1 ];
+		then
+			echo "create alert: ${result}"
+		fi
+		check_errors "${result}"
+	done
+
+	return 0
+}
+
+function set_pointinttime_backup () {
+	export intervalhours="6" # 6, 8, 12, 24
+	export retentiondays="2" # 2, 3, 4, 5
+	export pointInTimeWindowHours="6"
+
+	data=$(envsubst < templates/backups/pointintime.json)
+
+	if [ $DEBUG == 1 ];
+	then
+		echo "${data}"
+		echo "${cluster_name}"
+	fi
+
+	result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
+		--request PATCH "${base_url}/groups/${project_id}/clusters/${cluster_name}/snapshotSchedule" --data "${data}")
+	if [ $DEBUG == 1 ];
+	then
+		echo "point in time backups: ${result}"
+	fi
+	check_errors "${result}"
+}
+
+function set_snapshot_schedule () {
+	set_pointinttime_backup
+}

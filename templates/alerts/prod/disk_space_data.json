@@ -1,0 +1,22 @@
+{
+	"enabled": true,
+	"eventTypeName": "OUTSIDE_METRIC_THRESHOLD",
+	"matchers": [],
+	"metricThreshold": {
+		"metricName": "DISK_PARTITION_SPACE_USED_DATA",
+		"mode": "AVERAGE",
+		"operator": "GREATER_THAN",
+		"threshold": 80,
+		"units": "RAW"
+	},
+	"notifications": [
+		{
+			"delayMin": 5,
+			"emailEnabled": true,
+			"intervalMin": 60,
+			"smsEnabled": false,
+			"typeName": "GROUP"
+		}
+	],
+	"typeName": "HOST_METRIC"
+}

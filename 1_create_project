@@ -1,0 +1,41 @@
+#!/bin/bash
+
+. common
+. conf 
+
+function usage() {
+	echo "Error: $1"
+	echo "Usage: ./create_project -p <project_name>"
+	echo ""
+	echo "project_name:  Project to create"
+	echo ""
+}
+
+function set_default () {
+	DEBUG=0
+}
+
+function parse_args () {
+	local OPTIND
+	while getopts "p:d" opt; do
+		case ${opt} in
+			p ) export projectName=${OPTARG}
+				;;
+			d ) DEBUG=1
+				;;
+			\?) usage && exit 1;;
+		esac
+	done
+
+	if [ -z "$projectName" ];
+	then
+		usage & exit 1
+	fi
+	shift $((OPTIND -1))
+}
+
+set_default
+parse_args "$@"
+create_project "$project_name"
+
+echo "Project created: $project_id"

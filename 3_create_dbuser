@@ -1,0 +1,49 @@
+#!/bin/bash
+
+. common
+. conf 
+
+function usage() {
+	echo "Error: $1"
+	echo "Usage: ./create_dbuser -p <project> -u <username> -a <auth_type>"
+	echo ""
+	echo "project:  Project ID"
+	echo "username:  username"
+	echo "authtype: x509 or scram"
+	echo ""
+}
+
+function parse_args() {
+	DEBUG=0
+	while getopts "p:u:a:d" opt; do
+		case ${opt} in
+			p ) export project_id=${OPTARG}
+				;;
+			u ) export username=${OPTARG}
+				;;
+			a ) export authtype=${OPTARG}
+				;;
+			d ) DEBUG=1
+				;;
+			\?) usage && exit 1;;
+		esac
+	done
+	# removes the elements not processed by getopts
+	shift $((OPTIND -1))
+
+	if [ -z "${project_id}" ];
+	then
+		usage && exit 1
+	fi
+	if [ -z "${username}" ];
+	then
+		usage && exit 1
+	fi
+	if [ "${authtype}" != "x509" ] && [ "${authtype}" != "scram" ];
+	then
+		usage && exit 1
+	fi
+}
+
+parse_args "$@"
+create_user "${project_id}" "${username}" "${authtype}"

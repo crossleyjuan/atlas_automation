@@ -1,0 +1,28 @@
+{
+	"enabled": true,
+	"eventTypeName": "OUTSIDE_METRIC_THRESHOLD",
+	"matchers": [
+		{
+			"fieldName": "TYPE_NAME",
+			"operator": "CONTAINS",
+			"value": "SECONDARY"
+		}
+	],
+	"metricThreshold": {
+		"metricName": "OPLOG_MASTER_LAG_TIME_DIFF",
+		"mode": "AVERAGE",
+		"operator": "LESS_THAN",
+		"threshold": 48,
+		"units": "HOURS"
+	},
+	"notifications": [
+		{
+			"delayMin": 5,
+			"emailEnabled": true,
+			"intervalMin": 60,
+			"smsEnabled": false,
+			"typeName": "GROUP"
+		}
+	],
+	"typeName": "HOST_METRIC"
+}

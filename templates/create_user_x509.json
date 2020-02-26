@@ -1,0 +1,14 @@
+{
+	"databaseName": "${auth_database}",
+	"labels": [
+		{
+			"key": "usertype",
+			"value": "developer"
+		}
+	],
+	"groupId": "${project_id}",
+	"roles": [ { "databaseName": "admin", "roleName":  "readWriteAnyDatabase" } ],
+	"username": "${username}",
+	"x509Type": "MANAGED"
+		
+}

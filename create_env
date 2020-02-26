@@ -1,0 +1,134 @@
+#!/bin/bash
+
+. common
+. conf 
+
+function usage() {
+	message=$1
+	echo "Error: ${message}"
+	echo "Usage: ./create_env <options>"
+	echo ""
+	echo "Options:"
+	echo "-p:  Project Name to be created"
+	echo "-e:  Environment type: dev,cert,pre,prod"
+	echo "-x:  Disk size in MB"
+	echo "-v:  MongoDB version options: 4.0, 4.2"
+	echo "-r:  Point in time enabled (default false)"
+	echo ""
+}
+
+function parse_args() {
+	DEBUG=0
+	export backup_pit_enabled="false"
+	while getopts "p:e:dx:t:v:r" opt; do
+		case ${opt} in
+			p ) export project_name=${OPTARG}
+				;;
+			x ) export disk_size=${OPTARG}
+				;;
+			e ) export env_type=${OPTARG}
+				;;
+			v ) export mongodb_version=${OPTARG}
+				;;
+			t ) export template=${OPTARG}
+				;;
+			r )
+				export backup_pit_enabled="true"
+				export backup_provider_enabled="false"
+				;;
+			d ) DEBUG=1
+				;;
+			\?) usage && exit 1;;
+		esac
+	done
+	# removes the elements not processed by getopts
+	shift $((OPTIND -1))
+
+	if [ "${backup_pit_enabled}" == "true" ];
+	then
+		if  [ "${mongodb_version}" == "4.2" ];
+		then
+			echo "Incompatible options, version 4.2 does not support point in time recovery in atlas, please choose 4.0 or disable PIT"
+			exit 1
+		fi
+		if [ -z "${mongodb_version}" ] && [ "${backup_pit_enabled}" == "true" ];
+		then
+			export mongodb_version="4.0"
+		fi
+	fi
+
+	if [ -z "${mongodb_version}" ];
+	then
+		export mongodb_version="4.2"
+	fi
+
+	check_required "${project_name}" "Project name is required"
+	check_required "${env_type}" "Environment is required" "dev,cert,pre,prod"
+	check_required "${template}" "Template is required is required" "small,medium,large"
+
+	case "${env_type}" in
+		dev ) 
+			export cluster_name="${project_name}${env_type}"
+			if [ -z "${disk_size}" ];
+			then
+				export disk_size=100
+			fi
+			export username="${project_name}dev"
+			export password="$(openssl rand -base64 12)"
+			export authtype="scram"
+			export backup_provider_enabled="false"
+			;;
+		cert ) 
+			export cluster_name="${project_name}${env_type}"
+			if [ -z "${disk_size}" ];
+			then
+				export disk_size=100
+			fi
+			export username="${project_name}cert"
+			export password="$(openssl rand -base64 12)"
+			export authtype="scram"
+			export backup_provider_enabled="false"
+			;;
+		pre ) echo "pre"
+			export cluster_name="${project_name}${env_type}"
+			if [ -z "${disk_size}" ];
+			then
+				export disk_size=500
+			fi
+			export username="${project_name}pre"
+			export authtype="x509"
+			export backup_provider_enabled="false"
+			;;
+		prod ) echo "prod"
+			export cluster_name="${project_name}${env_type}"
+			if [ -z "${disk_size}" ];
+			then
+				export disk_size=1024
+			fi
+			export username="${project_name}prod"
+			export authtype="x509"
+			export backup_provider_enabled="true"
+			if [ "${backup_pit_enabled}" == "true" ];
+			then
+				export backup_provider_enabled="false"
+			fi
+			;;
+	esac
+
+}
+
+parse_args "$@"
+
+##create_project "${project_name}"
+export project_id="5bc75019d5ec1361b802eeb1"
+
+#if [ "$provider_name" == "AZURE" ];
+#then
+#	enable_peering_only_mode
+#fi
+
+create_cluster "${template}" ${disk_size}
+create_user "${project_id}" "${username}" "${authtype}"
+
+create_alerts
+set_pointinttime_backup

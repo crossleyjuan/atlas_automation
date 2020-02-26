@@ -1,0 +1,22 @@
+{
+	"enabled": true,
+	"eventTypeName": "OUTSIDE_METRIC_THRESHOLD",
+	"matchers": [],
+	"metricThreshold": {
+		"metricName": "TICKETS_AVAILABLE_READS",
+		"mode": "AVERAGE",
+		"operator": "LESS_THAN",
+		"threshold": 20,
+		"units": "RAW"
+	},
+	"notifications": [
+		{
+			"delayMin": 5,
+			"emailEnabled": true,
+			"intervalMin": 60,
+			"smsEnabled": false,
+			"typeName": "GROUP"
+		}
+	],
+	"typeName": "HOST_METRIC"
+},

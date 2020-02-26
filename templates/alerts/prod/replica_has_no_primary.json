@@ -1,0 +1,15 @@
+{
+	"enabled": true,
+	"eventTypeName": "NO_PRIMARY",
+	"matchers": [],
+	"notifications": [
+		{
+			"delayMin": 1,
+			"emailEnabled": true,
+			"intervalMin": 60,
+			"smsEnabled": false,
+			"typeName": "GROUP"
+		}
+	],
+	"typeName": "REPLICA_SET"
+}
