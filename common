@@ -2,7 +2,13 @@
 export provider_name="AZURE"
 export region="EUROPE_WEST"
 
-function check_errors () {
+###############################################
+# Check for the standard error in the json response
+# usage:
+#      output=$(curl -s ...)
+#      check_for_response_error "${output}"
+###############################################
+function check_for_response_error () {
 	result=$1
 
 	if [ -z "${result}" ];
@@ -16,11 +22,14 @@ function check_errors () {
 	fi
 }
 
-###
+###############################################
+# Checks if a required argument is used and also checks for the allowed options,
+# it will stop execution if fails
 #
-#   check_required ${project_name} "Project name is required"
-##
-function check_required () {
+# usage:
+#     test_arg_required_and_options "param" "message" "option1,option2,option3"
+###############################################
+function test_arg_required_and_options () {
 	param=$1
 	message=$2
 	options=$3
@@ -49,13 +58,21 @@ function check_required () {
 
 }
 
+###############################################
+# creates a project by name in Atlas
+#
+# return: it will set the project_id
+#
+# usage:
+#     create_project "MyTestProject"
+###############################################
 function create_project () {
 	projectName=$1
 	echo "Creating $projectName"
 
 	project_result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json" -X POST "${base_url}/groups" --data "{ \"name\" : \"${projectName}\", \"orgId\" : \"${organizationId}\" }")
 
-	check_errors "${project_result}" 
+	check_for_response_error "${project_result}" 
 
 	if [ $DEBUG == 1 ];
 	then
@@ -67,6 +84,14 @@ function create_project () {
 	return 0
 }
 
+###############################################
+# creates a cluster
+#
+# return: it will set the cluster_id
+#
+# usage:
+#     create_project "MyTestProject"
+###############################################
 function create_cluster () {
 	template=$1
 	disk_size=$2
@@ -99,7 +124,7 @@ function create_cluster () {
 	cluster_result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
 		-X POST "${base_url}/groups/${project_id}/clusters" --data "${data}")
 
-	check_errors "${cluster_result}" 
+	check_for_response_error "${cluster_result}" 
 
 	if [ $DEBUG == 1 ];
 	then
@@ -111,6 +136,14 @@ function create_cluster () {
 	return 0
 }
 
+###############################################
+# creates a user in the environment
+#
+# returns: If the auth type is scram then it will show in the output the generated password, if it's x509 then it will output pem to a folder named "output"
+#
+# usage:
+#     create_user "<project_id>" "<username>" "<authtype: x509,scram>"
+###############################################
 function create_user () {
 	project_id=$1
 	username=$2
@@ -143,7 +176,7 @@ function create_user () {
 		echo "Result from create user: ${result}"
 	fi
 
-	check_errors "${result}"
+	check_for_response_error "${result}"
 
 	case "${authtype}" in
 		x509 )
@@ -156,6 +189,8 @@ function create_user () {
 			then
 				echo "result from get certificate ${result_cert}"
 			fi
+
+			mkdir -p output
 
 			result_cert=$(echo ${result_cert}|sed -e "s/-----\([A-Z]*\) \([A-Z]*\)-----/-----\1_\2-----/g" -e "s/-----\([A-Z]*\) \([A-Z]*\) \([A-Z]*\)-----/-----\1_\2_\3-----/g")
 			echo -n $result_cert | tr ' ' '\n'  > output/${username}.pem
@@ -172,6 +207,13 @@ function create_user () {
 	return 0
 }
 
+###############################################
+# Sets the flag as "Connect via Peering Only (GCP and Azure)" mandatory for Azure 
+# It will use the ${project_id}
+#
+# usage:
+#     enable_peering_only_mode
+###############################################
 function enable_peering_only_mode () {
 	result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
 		--request PATCH "${base_url}/groups/${project_id}/privateIpMode" --data '{ "enabled": true }')
@@ -181,13 +223,19 @@ function enable_peering_only_mode () {
 		echo "Result Enabling Peering: ${result}"
 	fi
 
-	check_errors "${result}"
+	check_for_response_error "${result}"
 
 	echo "Peering only mode enabled"
 
 	return 0
 }
 
+###############################################
+# Clears all the previous alerts in the current project ${project_id}
+#
+# usage:
+#     delete_all_alerts
+###############################################
 function delete_all_alerts () {
 	current_config=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
 		--request GET "${base_url}/groups/${project_id}/alertConfigs")
@@ -209,6 +257,12 @@ function delete_all_alerts () {
 	done
 }
 
+###############################################
+# deletes one alert from the current project ${project_id}
+#
+# usage:
+#     delete_all_alert "<alert_id>"
+###############################################
 function delete_alert () {
 	alertId=$1
 	result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
@@ -218,38 +272,107 @@ function delete_alert () {
 	then
 		echo "deleted alert ${alertId}"
 	fi
-	check_errors "${result}"
+	check_for_response_error "${result}"
 }
 
+###############################################
+# Creates all the alerts using the templates from the folder templates/alerts/<environment>/
+# Warning: it will delete all the previous alerts
+#
+# usage:
+#     create_alerts
+###############################################
 function create_alerts () {
+	echo "Warning all the previous alerts will be deleted"
+
 	delete_all_alerts
 
 	result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
 		--request GET "${base_url}/groups/${project_id}/alertConfigs")
 	#echo ${result}| jq .
 
-	for f in templates/alerts/prod/*.json; 
-	do
-		data=$(envsubst < $f)
+	if [ -d "templates/alerts/${env_type}" ];
+	then
+		for f in templates/alerts/${env_type}/*.json; 
+		do
+			data=$(envsubst < $f)
 
-		result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
-			--request POST "${base_url}/groups/${project_id}/alertConfigs" --data "${data}")
-		if [ $DEBUG == 1 ];
-		then
-			echo "create alert: ${result}"
-		fi
-		check_errors "${result}"
-	done
+			result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
+				--request POST "${base_url}/groups/${project_id}/alertConfigs" --data "${data}")
+			if [ $DEBUG == 1 ];
+			then
+				echo "create alert: ${result}"
+			fi
+			check_for_response_error "${result}"
+		done
+	fi
 
 	return 0
 }
 
-function set_pointinttime_backup () {
-	export intervalhours="6" # 6, 8, 12, 24
-	export retentiondays="2" # 2, 3, 4, 5
-	export pointInTimeWindowHours="6"
+###############################################
+# checks for the deployment status, it will wait until the cluster is in IDLE state
+# it will wait for 10000 seconds (16 mins)
+#
+# usage:
+#     wait_for_idle_status
+###############################################
+function wait_for_idle_status () {
+	counter=1
+	continue_cond=1
+	MAX_RETRIES=100
+	while [ $continue_cond == 1 ];
+	do
+		get_cluster
+#		if [ $DEBUG == 1 ];
+#		then
+#			echo "${cluster_info}" | jq .
+#		fi
+		deployment_status=$(echo "${cluster_info}" | jq -r ".stateName")
+		counter=$[$counter+1]
+		if [ $counter -gt $MAX_RETRIES ];
+		then
+			continue_cond=0
+		else
+			case ${deployment_status} in
+				IDLE )
+					echo "New Status: ${deployment_status}"
+					continue_cond=0
+					;;
+				* )
+					echo "Waiting Current Status: ${deployment_status}"
+					sleep 10
+					;;
+			esac
+		fi
+	done
+}
 
-	data=$(envsubst < templates/backups/pointintime.json)
+###############################################
+# sets the backup policies (retentions, etc), it uses the backup config file for the parameters
+# server needs to be in IDLE status, check wait_for_idle_status
+#
+# Config file example (it must be a bash script):
+# backup.conf
+#
+# intervalhours=8
+# retentiondays=3
+# dailySnapshotRetentionDays=3
+# weeklySnapshotRetentionWeeks=0
+# monthlySnapshotRetentionMonths=0
+#
+# usage:
+#     set_backup_policies
+###############################################
+function set_backup_policies () {
+	. ${backup_conf}
+	export intervalhours="${intervalhours}" # 6, 8, 12, 24
+	export retentiondays="${retentiondays}"
+	export dailySnapshotRetentionDays=${dailySnapshotRetentionDays}
+	export weeklySnapshotRetentionWeeks=${weeklySnapshotRetentionWeeks}
+	export monthlySnapshotRetentionMonths=${monthlySnapshotRetentionMonths}
+
+	data=$(envsubst < templates/backups/configuration.json)
 
 	if [ $DEBUG == 1 ];
 	then
@@ -263,9 +386,39 @@ function set_pointinttime_backup () {
 	then
 		echo "point in time backups: ${result}"
 	fi
-	check_errors "${result}"
+	check_for_response_error "${result}"
 }
 
-function set_snapshot_schedule () {
-	set_pointinttime_backup
+###############################################
+# Retrieves the current clusters in the active project ${project_id}
+# 
+# return:  the variable clusters_info is set with the result
+#
+# usage:
+#     set_backup_policies
+###############################################
+function get_clusters () {
+	result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
+		--request GET "${base_url}/groups/${project_id}/clusters")
+	
+	check_for_response_error "${result}"
+
+	export clusters_info=${result}
+}
+
+###############################################
+# Retrieves the current cluster information using ${project_id} and ${cluster_name}
+# 
+# return:  the variable cluster_info is set with the result
+#
+# usage:
+#     get_cluster
+###############################################
+function get_cluster () {
+	result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
+		--request GET "${base_url}/groups/${project_id}/clusters/${cluster_name}")
+	
+	check_for_response_error "${result}"
+
+	export cluster_info=${result}
 }

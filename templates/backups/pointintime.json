@@ -1,6 +1,0 @@
-{
-	"groupId": "${project_id}",
-	"snapshotIntervalHours": ${intervalhours},
-	"snapshotRetentionDays": ${retentiondays},
-   "pointInTimeWindowHours": ${pointInTimeWindowHours}	
-}

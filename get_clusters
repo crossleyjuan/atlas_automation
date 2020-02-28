@@ -1,0 +1,42 @@
+
+#!/bin/bash
+
+. common
+. conf 
+
+function usage() {
+	message=$1
+	echo "Error: ${message}"
+	echo "Usage: ./get_clusters <options>"
+	echo ""
+	echo "Options:"
+	echo "-p:  project id"
+	echo ""
+}
+
+function parse_args() {
+	DEBUG=0
+	export backup_pit_enabled="false"
+	while getopts "p:d" opt; do
+		case ${opt} in
+			p ) export project_id=${OPTARG}
+				;;
+			d ) DEBUG=1
+				;;
+			\?) usage && exit 1;;
+		esac
+	done
+	# removes the elements not processed by getopts
+	shift $((OPTIND -1))
+
+	check_required "${project_id}" "Project id is required"
+}
+
+parse_args "$@"
+
+get_clusters
+
+echo "${clusters_info}" | jq .
+
+
+

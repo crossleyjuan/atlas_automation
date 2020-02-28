@@ -14,13 +14,14 @@ function usage() {
 	echo "-x:  Disk size in MB"
 	echo "-v:  MongoDB version options: 4.0, 4.2"
 	echo "-r:  Point in time enabled (default false)"
+	echo "-b:  backup config file (samples/backup.json)"
 	echo ""
 }
 
 function parse_args() {
 	DEBUG=0
 	export backup_pit_enabled="false"
-	while getopts "p:e:dx:t:v:r" opt; do
+	while getopts "p:e:dx:t:v:rb:" opt; do
 		case ${opt} in
 			p ) export project_name=${OPTARG}
 				;;
@@ -31,6 +32,8 @@ function parse_args() {
 			v ) export mongodb_version=${OPTARG}
 				;;
 			t ) export template=${OPTARG}
+				;;
+			b ) export backup_conf=${OPTARG}
 				;;
 			r )
 				export backup_pit_enabled="true"
@@ -62,9 +65,9 @@ function parse_args() {
 		export mongodb_version="4.2"
 	fi
 
-	check_required "${project_name}" "Project name is required"
-	check_required "${env_type}" "Environment is required" "dev,cert,pre,prod"
-	check_required "${template}" "Template is required is required" "small,medium,large"
+	test_arg_required_and_options "${project_name}" "Project name is required"
+	test_arg_required_and_options "${env_type}" "Environment is required" "dev,cert,pre,prod"
+	test_arg_required_and_options "${template}" "Template is required is required" "small,medium,large"
 
 	case "${env_type}" in
 		dev ) 
@@ -119,16 +122,18 @@ function parse_args() {
 
 parse_args "$@"
 
-##create_project "${project_name}"
-export project_id="5bc75019d5ec1361b802eeb1"
+create_project "${project_name}"
+#export project_id="5bc75019d5ec1361b802eeb1"
 
-#if [ "$provider_name" == "AZURE" ];
-#then
-#	enable_peering_only_mode
-#fi
+if [ "$provider_name" == "AZURE" ];
+then
+	enable_peering_only_mode
+fi
 
 create_cluster "${template}" ${disk_size}
 create_user "${project_id}" "${username}" "${authtype}"
 
 create_alerts
-set_pointinttime_backup
+wait_for_idle_status
+set_backup_policies
+

@@ -1,0 +1,44 @@
+#!/bin/bash
+
+. common
+. conf 
+
+function usage() {
+	message=$1
+	echo "Error: ${message}"
+	echo "Usage: ./get_cluster <options>"
+	echo ""
+	echo "Options:"
+	echo "-p:  project id"
+	echo "-c:  cluster name"
+	echo ""
+}
+
+function parse_args() {
+	DEBUG=0
+	export backup_pit_enabled="false"
+	while getopts "p:c:d" opt; do
+		case ${opt} in
+			p ) export project_id=${OPTARG}
+				;;
+			c ) export cluster_name=${OPTARG}
+				;;
+			d ) DEBUG=1
+				;;
+			\?) usage && exit 1;;
+		esac
+	done
+	# removes the elements not processed by getopts
+	shift $((OPTIND -1))
+
+	check_required "${project_id}" "Project id is required"
+	check_required "${cluster_name}" "Cluster name is required"
+}
+
+parse_args "$@"
+
+get_cluster
+
+echo "${cluster_info}" | jq .
+uri=$(echo "${cluster_info}" | jq ".mongoURIWithOptions" )
+echo " MongoDB URI: ${uri}"

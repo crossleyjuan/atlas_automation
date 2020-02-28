@@ -1,0 +1,8 @@
+{
+	"groupId": "${project_id}",
+	"snapshotIntervalHours": ${intervalhours},
+	"snapshotRetentionDays": ${retentiondays},
+	"dailySnapshotRetentionDays": ${dailySnapshotRetentionDays},
+	"weeklySnapshotRetentionWeeks": ${weeklySnapshotRetentionWeeks},
+	"monthlySnapshotRetentionMonths": ${monthlySnapshotRetentionMonths}
+}
