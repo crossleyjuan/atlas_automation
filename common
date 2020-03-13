@@ -74,7 +74,7 @@ function create_project () {
 
 	check_for_response_error "${project_result}" 
 
-	if [ $DEBUG == 1 ];
+	if [ "$DEBUG" == "1" ];
 	then
 		echo "Result: ${project_result}"
 	fi
@@ -116,7 +116,7 @@ function create_cluster () {
 	fi
 	data=$(envsubst < templates/azure/${template}.json)
 	
-	if [ $DEBUG == 1 ];
+	if [ "$DEBUG" == "1" ];
 	then
 		echo $data
 	fi
@@ -126,7 +126,7 @@ function create_cluster () {
 
 	check_for_response_error "${cluster_result}" 
 
-	if [ $DEBUG == 1 ];
+	if [ "$DEBUG" == "1" ];
 	then
 		echo "result: $cluster_result"
 	fi
@@ -163,7 +163,7 @@ function create_user () {
 
 	echo "Creating user"
 
-	if [ $DEBUG == 1 ];
+	if [ "$DEBUG" == "1" ];
 	then
 		echo "Command data: ${data}"
 	fi
@@ -171,7 +171,7 @@ function create_user () {
 	result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
 		-X POST "${base_url}/groups/${project_id}/databaseUsers" --data "${data}")
 
-	if [ $DEBUG == 1 ];
+	if [ "$DEBUG" == "1" ];
 	then
 		echo "Result from create user: ${result}"
 	fi
@@ -185,7 +185,7 @@ function create_user () {
 			result_cert=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
 				-X POST "${base_url}/groups/${project_id}/databaseUsers/${username}/certs" --data "${data_cert}")
 
-			if [ $DEBUG == 1 ];
+			if [ "$DEBUG" == "1" ];
 			then
 				echo "result from get certificate ${result_cert}"
 			fi
@@ -207,6 +207,22 @@ function create_user () {
 	return 0
 }
 
+function get_peering_only_mode () {
+	result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
+		--request GET "${base_url}/groups/${project_id}/privateIpMode")
+
+	if [ "$DEBUG" == "1" ];
+	then
+		echo "Result Enabling Peering: ${result}"
+	fi
+
+	check_for_response_error "${result}"
+
+	export peering_only_mode_enabled=$(echo ${result} |jq .enabled)
+
+	echo "Peering only mode current status: ${peering_only_mode_enabled}"
+}
+
 ###############################################
 # Sets the flag as "Connect via Peering Only (GCP and Azure)" mandatory for Azure 
 # It will use the ${project_id}
@@ -215,10 +231,19 @@ function create_user () {
 #     enable_peering_only_mode
 ###############################################
 function enable_peering_only_mode () {
+
+	get_peering_only_mode
+
+	if [ "${peering_only_mode_enabled}" == "true" ];
+	then
+		echo "Peering only mode is already enabled"
+		return 0
+	fi
+
 	result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
 		--request PATCH "${base_url}/groups/${project_id}/privateIpMode" --data '{ "enabled": true }')
 
-	if [ $DEBUG == 1 ];
+	if [ "$DEBUG" == "1" ];
 	then
 		echo "Result Enabling Peering: ${result}"
 	fi
@@ -240,7 +265,7 @@ function delete_all_alerts () {
 	current_config=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
 		--request GET "${base_url}/groups/${project_id}/alertConfigs")
 
-	if [ $DEBUG == 1 ];
+	if [ "$DEBUG" == "1" ];
 	then
 		echo "${current_config}" | jq .
 	fi
@@ -248,7 +273,7 @@ function delete_all_alerts () {
 	for alert in $(echo ${current_config}| jq -c .results[]); do
 		alertId=$(echo ${alert} | jq .id | sed -e "s/\"//g")
 
-		#		if [ $DEBUG == 1 ];
+		#		if [ "$DEBUG" == "1" ];
 		#		then
 		#			echo "${alert}" | jq .
 		#		fi
@@ -268,7 +293,7 @@ function delete_alert () {
 	result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
 		--request DELETE "${base_url}/groups/${project_id}/alertConfigs/${alertId}")
 
-	if [ $DEBUG == 1 ];
+	if [ "$DEBUG" == "1" ];
 	then
 		echo "deleted alert ${alertId}"
 	fi
@@ -299,7 +324,7 @@ function create_alerts () {
 
 			result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
 				--request POST "${base_url}/groups/${project_id}/alertConfigs" --data "${data}")
-			if [ $DEBUG == 1 ];
+			if [ "$DEBUG" == "1" ];
 			then
 				echo "create alert: ${result}"
 			fi
@@ -324,7 +349,7 @@ function wait_for_idle_status () {
 	while [ $continue_cond == 1 ];
 	do
 		get_cluster
-#		if [ $DEBUG == 1 ];
+#		if [ "$DEBUG" == "1" ];
 #		then
 #			echo "${cluster_info}" | jq .
 #		fi
@@ -374,7 +399,7 @@ function set_backup_policies () {
 
 	data=$(envsubst < templates/backups/configuration.json)
 
-	if [ $DEBUG == 1 ];
+	if [ "$DEBUG" == "1" ];
 	then
 		echo "${data}"
 		echo "${cluster_name}"
@@ -382,7 +407,7 @@ function set_backup_policies () {
 
 	result=$(curl -s -u "${public_key}:${private_key}" --digest -H "Content-Type: application/json"  \
 		--request PATCH "${base_url}/groups/${project_id}/clusters/${cluster_name}/snapshotSchedule" --data "${data}")
-	if [ $DEBUG == 1 ];
+	if [ "$DEBUG" == "1" ];
 	then
 		echo "point in time backups: ${result}"
 	fi
