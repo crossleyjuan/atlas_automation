@@ -14,7 +14,8 @@ function usage() {
 	echo "-x:  Disk size in MB"
 	echo "-v:  MongoDB version options: 4.0, 4.2"
 	echo "-r:  Point in time enabled (default false)"
-	echo "-b:  backup config file (samples/backup.json)"
+	echo "-b:  backup config file (samples/backup.conf)"
+	echo "-t:  template to be used (small,medium,large)"
 	echo ""
 }
 
@@ -123,7 +124,6 @@ function parse_args() {
 parse_args "$@"
 
 create_project "${project_name}"
-#export project_id="5bc75019d5ec1361b802eeb1"
 
 if [ "$provider_name" == "AZURE" ];
 then
